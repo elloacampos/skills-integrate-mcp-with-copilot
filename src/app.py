@@ -5,14 +5,33 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
 from pathlib import Path
+from sqlalchemy.orm import Session
+
+from .db import get_db, engine
+from .auth import (
+    create_db_and_tables,
+    get_password_hash,
+    create_access_token,
+    authenticate_user,
+    oauth2_scheme,
+    get_current_user,
+    require_role,
+    UserDB,
+)
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import timedelta
+
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
+
+# create db + tables at startup
+create_db_and_tables()
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
@@ -89,8 +108,8 @@ def get_activities():
 
 
 @app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str):
-    """Sign up a student for an activity"""
+def signup_for_activity(activity_name: str, email: str, current_user=Depends(require_role("teacher"))):
+    """Sign up a student for an activity (requires teacher or admin role)"""
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -110,8 +129,35 @@ def signup_for_activity(activity_name: str, email: str):
     return {"message": f"Signed up {email} for {activity_name}"}
 
 
+@app.post("/auth/register")
+def register(email: str, password: str, full_name: str = None, role: str = "student", db: Session = Depends(get_db)):
+    """Register a new user (creates user in local SQLite DB)"""
+    from .auth import UserDB
+
+    existing = db.query(UserDB).filter(UserDB.email == email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user = UserDB(email=email, full_name=full_name, hashed_password=get_password_hash(password), role=role)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"message": "user created", "email": user.email}
+
+
+@app.post("/auth/login", response_model=dict)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    access_token_expires = timedelta(minutes=60 * 24)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 @app.delete("/activities/{activity_name}/unregister")
-def unregister_from_activity(activity_name: str, email: str):
+def unregister_from_activity(activity_name: str, email: str, current_user=Depends(require_role("teacher"))):
     """Unregister a student from an activity"""
     # Validate activity exists
     if activity_name not in activities:
