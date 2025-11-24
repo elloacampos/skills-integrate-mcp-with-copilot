@@ -1,3 +1,5 @@
+# security / config
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -11,10 +13,13 @@ from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 
-# --- Config
-SECRET_KEY = "change-this-secret-for-production"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+# --- Config (read from env when available)
+SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-for-production")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+try:
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24)))
+except ValueError:
+    ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -65,7 +70,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

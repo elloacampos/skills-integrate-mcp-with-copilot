@@ -92,3 +92,16 @@ Notas:
 - O script `scripts/seed_users.py` cria três usuários de teste: `admin@school.edu` (admin), `teacher@school.edu` (teacher) e `student@school.edu` (student).
 - O `SECRET_KEY` em `src/auth.py` está hard-coded para fins de PoC — mova para variável de ambiente antes de produção.
 - Se não tiver `jq` instalado, você pode extrair manualmente o campo `access_token` do JSON retornado.
+
+Configuração de ambiente recomendada
+
+- `SECRET_KEY` (recomendado): defina uma chave forte no ambiente para produção. Ex:
+
+```bash
+export SECRET_KEY="uma-chave-muito-secreta"
+export ACCESS_TOKEN_EXPIRE_MINUTES=1440
+```
+
+- `ACCESS_TOKEN_EXPIRE_MINUTES` (opcional): tempo de expiração do token em minutos (padrão 1440 = 24h).
+
+Sem `SECRET_KEY` setada, o projeto utiliza um valor de desenvolvimento que NÃO é seguro para produção.
