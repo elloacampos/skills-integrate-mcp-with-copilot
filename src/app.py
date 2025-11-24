@@ -108,8 +108,8 @@ def get_activities():
 
 
 @app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str, current_user=Depends(get_current_user)):
-    """Sign up a student for an activity (requires authentication)"""
+def signup_for_activity(activity_name: str, email: str, current_user=Depends(require_role("teacher"))):
+    """Sign up a student for an activity (requires teacher or admin role)"""
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -157,7 +157,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 
 @app.delete("/activities/{activity_name}/unregister")
-def unregister_from_activity(activity_name: str, email: str):
+def unregister_from_activity(activity_name: str, email: str, current_user=Depends(require_role("teacher"))):
     """Unregister a student from an activity"""
     # Validate activity exists
     if activity_name not in activities:
